@@ -42,27 +42,15 @@ jobs:
       if: runner.os == 'macOS'
       env:
         MACOSX_DEPLOYMENT_TARGET: "10.13"
-      run: |
-        pyinstaller --noconfirm --onefile --windowed \
-          --name "${{ matrix.file_name }}" \
-          --hidden-import "pymobiledevice3" \
-          client/activator.py
+      run: pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" client/activator.py
 
     - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
-      run: |
-        pyinstaller --noconfirm --onefile --windowed \
-          --name "${{ matrix.file_name }}" \
-          --hidden-import "pymobiledevice3" \
-          client/activator.py
+      run: pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" client/activator.py
 
     - name: Build with PyInstaller (Linux)
       if: runner.os == 'Linux'
-      run: |
-        pyinstaller --noconfirm --onefile \
-          --name "${{ matrix.file_name }}" \
-          --hidden-import "pymobiledevice3" \
-          client/activator.py
+      run: pyinstaller --noconfirm --onefile --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" client/activator.py
 
     - name: Package macOS DMG
       if: runner.os == 'macOS'
