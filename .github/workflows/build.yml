@@ -15,13 +15,13 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            file_name: "a12activator_windows"
+            file_name: "mobidoc_a12_windows"
           - os: ubuntu-latest
-            file_name: "a12activator_linux"
+            file_name: "mobidoc_a12_linux"
           - os: macos-latest
-            file_name: "a12activator_macos_arm64"
+            file_name: "mobidoc_a12_macos_arm64"
           - os: macos-15-intel
-            file_name: "a12activator_macos_intel"
+            file_name: "mobidoc_a12_macos_intel"
 
     steps:
     - uses: actions/checkout@v4
@@ -42,15 +42,15 @@ jobs:
       if: runner.os == 'macOS'
       env:
         MACOSX_DEPLOYMENT_TARGET: "10.13"
-      run: pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" client/activator.py
+      run: pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" --add-data "logo.png;." --add-data "logo.ico;." --add-data "logo.icns;." client/activator.py
 
     - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
-      run: pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" client/activator.py
+      run: pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" --add-data "logo.png;." --add-data "logo.ico;." --add-data "logo.icns;." client/activator.py
 
     - name: Build with PyInstaller (Linux)
       if: runner.os == 'Linux'
-      run: pyinstaller --noconfirm --onefile --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" client/activator.py
+      run: pyinstaller --noconfirm --onefile --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" --add-data "logo.png;." --add-data "logo.ico;." --add-data "logo.icns;." client/activator.py
 
     - name: Package macOS DMG
       if: runner.os == 'macOS'

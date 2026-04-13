@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QLabel, QMessageBox, QDialog, QProgressBar
 )
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon
 
 from pymobiledevice3.lockdown import create_using_usbmux
 from pymobiledevice3.services.afc import AfcService
@@ -361,14 +361,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('MobiDoc A12+')
-        self.setFixedSize(520, 360)
-
-        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        icon_path = os.path.join(root_dir, 'logo.png')
-        if not os.path.exists(icon_path):
-            icon_path = os.path.join(root_dir, 'logo.ico')
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
+        self.setFixedSize(520, 320)
 
         self.activator = A12Activator()
         self._reported_udids = set()
@@ -418,14 +411,6 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
 
-        logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logo.png')
-        if os.path.exists(logo_path):
-            pixmap = QPixmap(logo_path).scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            logo_label = QLabel()
-            logo_label.setPixmap(pixmap)
-            logo_label.setAlignment(Qt.AlignCenter)
-            layout.insertWidget(0, logo_label)
-
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll_device)
         self.timer.start(1200)
@@ -437,12 +422,6 @@ class MainWindow(QMainWindow):
             version = info.get('ProductVersion', 'Unknown')
             udid = info.get('UniqueDeviceID', '')
             sn = info.get('SerialNumber', '')
-
-            if not is_version_supported(version):
-                self._clear_info()
-                self.status_label.setText(f'Unsupported iOS version: {version}')
-                self.activate_button.setEnabled(False)
-                return
 
             self.lbl_device.setText(f'Device connected: {product} iOS {version}')
             self.lbl_udid.setText(f'UDID: {udid}')
@@ -573,6 +552,11 @@ def run_cli():
     activator.verify_dependencies()
     if not activator.detect_device():
         print('No device connected.')
+        sys.exit(1)
+
+    version = activator.device_info.get('ProductVersion', 'Unknown')
+    if not is_version_supported(version):
+        print(f'Unsupported iOS version: {version}')
         sys.exit(1)
 
     print('Device detected, activation in progress...')
