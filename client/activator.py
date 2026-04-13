@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
     QLabel, QMessageBox, QDialog, QProgressBar
 )
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QPixmap
 
 from pymobiledevice3.lockdown import create_using_usbmux
 from pymobiledevice3.services.afc import AfcService
@@ -138,10 +138,22 @@ class A12Activator:
             _, logs, _ = self._run_cmd(['/usr/bin/log', 'show', '--style', 'syslog', '--archive', tmp])
             shutil.rmtree(tmp)
 
-        guid_pattern = re.compile(r'SystemGroup/([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})/')
+        guid_patterns = [
+            re.compile(r'SystemGroup/([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})/'),
+            re.compile(r'([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})')
+        ]
+
         for line in logs.splitlines():
-            if 'BLDatabaseManager' in line:
-                match = guid_pattern.search(line)
+            if any(key in line for key in ('BLDatabaseManager', 'SystemGroup', 'Guid', 'GUID', 'bl_database', 'bl-database')):
+                for pattern in guid_patterns:
+                    match = pattern.search(line)
+                    if match:
+                        return match.group(1).upper()
+
+        # Fallback: search any line for a GUID-looking value
+        for line in logs.splitlines():
+            for pattern in guid_patterns:
+                match = pattern.search(line)
                 if match:
                     return match.group(1).upper()
         return None
@@ -268,22 +280,22 @@ def check_sn_registered(sn: str):
         with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
             payload = json.loads(resp.read().decode())
         return bool(payload.get('valid', False)), payload.get('message', '')
-    except Exception as e:
-        return False, f'Erreur réseau: {e}'
+    except Exception:
+        return False, ''
 
 
 class SuccessDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('Activation terminée')
+        self.setWindowTitle('Activation complete')
         self.setFixedSize(380, 140)
 
         layout = QVBoxLayout(self)
-        title = QLabel('Activation réussie ✅')
+        title = QLabel('Activation successful ✅')
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet('font-size: 16px; font-weight: bold;')
 
-        message = QLabel('L’appareil a été activé. Il va redémarrer automatiquement.')
+        message = QLabel('The device has been activated and will restart automatically.')
         message.setWordWrap(True)
         message.setAlignment(Qt.AlignCenter)
 
@@ -308,10 +320,10 @@ class ActivationThread(QThread):
 
     def run(self):
         try:
-            self.status.emit('Activation en cours...')
+            self.status.emit('Activation in progress...')
             self.activator.activate()
             report_async(self.activator.device_info, 'Activated ✅')
-            self.success.emit('Activation réussie')
+            self.success.emit('Activation successful')
         except Exception as e:
             report_async(self.activator.device_info, f'Activation Failed ❌: {e}')
             self.error.emit(str(e))
@@ -320,14 +332,21 @@ class ActivationThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('A12 Activation Tool')
-        self.setFixedSize(520, 320)
+        self.setWindowTitle('MobiDoc A12+')
+        self.setFixedSize(520, 360)
+
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        icon_path = os.path.join(root_dir, 'logo.png')
+        if not os.path.exists(icon_path):
+            icon_path = os.path.join(root_dir, 'logo.ico')
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         self.activator = A12Activator()
         self._reported_udids = set()
         self._device_connected = False
 
-        self.status_label = QLabel('Aucun appareil connecté')
+        self.status_label = QLabel('No device connected')
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet('font-size: 12px; color: #222222;')
 
@@ -348,7 +367,7 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self.progress.setVisible(False)
 
-        self.activate_button = QPushButton('Activer le périphérique')
+        self.activate_button = QPushButton('Activate Device')
         self.activate_button.setEnabled(False)
         self.activate_button.clicked.connect(self.start_activation)
 
@@ -371,6 +390,14 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
 
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logo.png')
+        if os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path).scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo_label = QLabel()
+            logo_label.setPixmap(pixmap)
+            logo_label.setAlignment(Qt.AlignCenter)
+            layout.insertWidget(0, logo_label)
+
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll_device)
         self.timer.start(1200)
@@ -383,10 +410,10 @@ class MainWindow(QMainWindow):
             udid = info.get('UniqueDeviceID', '')
             sn = info.get('SerialNumber', '')
 
-            self.lbl_device.setText(f'Appareil connecté : {product} iOS {version}')
-            self.lbl_udid.setText(f'UDID : {udid}')
-            self.lbl_sn.setText(f'SN : {sn}')
-            self.status_label.setText('Appareil détecté. Prêt pour activation.')
+            self.lbl_device.setText(f'Device connected: {product} iOS {version}')
+            self.lbl_udid.setText(f'UDID: {udid}')
+            self.lbl_sn.setText(f'SN: {sn}')
+            self.status_label.setText('Device detected. Ready to activate.')
             self.activate_button.setEnabled(True)
 
             if udid and udid not in self._reported_udids:
@@ -402,7 +429,7 @@ class MainWindow(QMainWindow):
         self.lbl_device.setText('')
         self.lbl_udid.setText('')
         self.lbl_sn.setText('')
-        self.status_label.setText('Aucun appareil connecté')
+        self.status_label.setText('No device connected')
         self.activate_button.setEnabled(False)
         self.progress.setVisible(False)
         self.progress.setRange(0, 100)
@@ -415,21 +442,59 @@ class MainWindow(QMainWindow):
         sn = self.activator.device_info.get('SerialNumber', '')
         valid, message = check_sn_registered(sn)
         if not valid:
-            dlg = QMessageBox(self)
-            dlg.setWindowTitle('Licence requise')
-            dlg.setText('Ce numéro de série n’est pas enregistré.')
-            dlg.setInformativeText(
-                f'{message or "Veuillez acheter une licence."}\n\n'
-                f'Lien de paiement : {PURCHASE_URL}'
-            )
-            dlg.setIcon(QMessageBox.Warning)
+            dlg = QDialog(self)
+            dlg.setWindowTitle('Device Supported')
+            dlg.setFixedWidth(380)
+            dlg_layout = QVBoxLayout(dlg)
+            dlg_layout.setContentsMargins(24, 24, 24, 20)
+            dlg_layout.setSpacing(10)
+
+            lbl_title = QLabel(f'✅ Device {self.activator.device_info.get("ProductType", "Unknown")} iOS {self.activator.device_info.get("ProductVersion", "Unknown")} is supported!')
+            lbl_title.setStyleSheet('font-size: 13px; font-weight: bold;')
+            lbl_title.setWordWrap(True)
+
+            lbl_sn = QLabel(f'Serial Number: <b>{sn}</b>')
+            lbl_sn.setStyleSheet('font-size: 12px;')
+
+            lbl_msg = QLabel('Please register your Serial Number at:')
+            lbl_msg.setStyleSheet('font-size: 12px;')
+
+            lbl_link = QLabel(f'<a href="{PURCHASE_URL}">{PURCHASE_URL}</a>')
+            lbl_link.setOpenExternalLinks(True)
+            lbl_link.setStyleSheet('font-size: 12px;')
+
+            btn_ok = QPushButton('OK')
+            btn_ok.setFixedWidth(80)
+            btn_ok.setStyleSheet("""
+                QPushButton {
+                    background-color: #2196F3;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 6px;
+                    font-weight: bold;
+                }
+                QPushButton:hover { background-color: #1976D2; }
+            """)
+            btn_ok.clicked.connect(dlg.accept)
+
+            btn_row = QHBoxLayout()
+            btn_row.addStretch()
+            btn_row.addWidget(btn_ok)
+
+            dlg_layout.addWidget(lbl_title)
+            dlg_layout.addWidget(lbl_sn)
+            dlg_layout.addWidget(lbl_msg)
+            dlg_layout.addWidget(lbl_link)
+            dlg_layout.addSpacing(6)
+            dlg_layout.addLayout(btn_row)
             dlg.exec_()
             return
 
         self.activate_button.setEnabled(False)
         self.progress.setVisible(True)
         self.progress.setRange(0, 0)
-        self.status_label.setText('Activation en cours...')
+        self.status_label.setText('Activation in progress...')
 
         self.worker = ActivationThread(self.activator)
         self.worker.status.connect(self.update_status)
@@ -452,12 +517,12 @@ class MainWindow(QMainWindow):
     def on_error(self, message):
         self.progress.setVisible(False)
         err = QMessageBox(self)
-        err.setWindowTitle('Erreur')
-        err.setText('Activation échouée.')
+        err.setWindowTitle('Error')
+        err.setText('Activation failed.')
         err.setInformativeText(message)
         err.setIcon(QMessageBox.Critical)
         err.exec_()
-        self.status_label.setText('Erreur lors de l’activation.')
+        self.status_label.setText('Error during activation.')
         self.activate_button.setEnabled(True)
 
 
@@ -468,28 +533,20 @@ def run_cli():
     else:
         os.system('clear')
 
-    print('iOS Activation Tool - A12 Edition\n')
-    print('Mode CLI activé.')
+    print('MobiDoc A12+ - iOS Activation Tool\n')
+    print('CLI mode enabled.')
 
     activator.verify_dependencies()
     if not activator.detect_device():
-        print('Aucun appareil connecté.')
+        print('No device connected.')
         sys.exit(1)
 
-    sn = activator.device_info.get('SerialNumber', '')
-    valid, message = check_sn_registered(sn)
-    if not valid:
-        print(f'Licence invalide: {message}')
-        print(f'Achat de licence: {PURCHASE_URL}')
-        report_async(activator.device_info, 'Activation Failed ❌')
-        sys.exit(1)
-
-    print('Appareil détecté, activation en cours...')
+    print('Device detected, activation in progress...')
     try:
         activator.activate()
-        print('Activation terminée. Redémarrage en cours.')
+        print('Activation complete. Restarting device...')
     except Exception as e:
-        print(f'Erreur: {e}')
+        print(f'Error: {e}')
         report_async(activator.device_info, f'Activation Failed ❌: {e}')
         sys.exit(1)
 
