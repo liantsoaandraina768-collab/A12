@@ -42,15 +42,15 @@ jobs:
       if: runner.os == 'macOS'
       env:
         MACOSX_DEPLOYMENT_TARGET: "10.13"
-      run: pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" --add-data "logo.png:." --add-data "logo.ico:." --add-data "logo.icns:." client/activator.py
+      run: pyinstaller --noconfirm --onefile --windowed --icon logo.icns --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" --add-data "logo.png:." --add-data "logo.ico:." --add-data "logo.icns:." client/activator.py
 
     - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
-      run: pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" --add-data "logo.png:." --add-data "logo.ico:." --add-data "logo.icns:." client/activator.py
+      run: pyinstaller --noconfirm --onefile --windowed --icon logo.ico --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" --add-data "logo.png:." --add-data "logo.ico:." --add-data "logo.icns:." client/activator.py
 
     - name: Build with PyInstaller (Linux)
       if: runner.os == 'Linux'
-      run: pyinstaller --noconfirm --onefile --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" --add-data "logo.png:." --add-data "logo.ico:." --add-data "logo.icns:." client/activator.py
+      run: pyinstaller --noconfirm --onefile --icon logo.png --name "${{ matrix.file_name }}" --hidden-import "pymobiledevice3" --add-data "logo.png:." --add-data "logo.ico:." --add-data "logo.icns:." client/activator.py
 
     - name: Package macOS DMG
       if: runner.os == 'macOS'
@@ -59,7 +59,7 @@ jobs:
         plutil -replace LSMinimumSystemVersion -string "10.13" "${{ matrix.file_name }}.app/Contents/Info.plist"
         codesign --force --deep --sign - "${{ matrix.file_name }}.app"
         create-dmg \
-          --volname "A12 Activation Tool" \
+          --volname "MobiDoc A12+ Activation Tool" \
           --window-pos 200 120 \
           --window-size 600 300 \
           --icon-size 100 \
